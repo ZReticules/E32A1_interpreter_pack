@@ -1,0 +1,488 @@
+; change x64.inc to x86.inc for 
+include "TOOLS\x64.inc"
+include "TOOLS\STDHEAD.inc"
+include "encoding\Win1251.inc"
+include "TOOLS\TOOLS.INC"
+include "TOOLS\cstdio.inc"
+
+entry main
+
+importlib kernel32, \
+	SetConsoleCP, \
+	SetConsoleOutputCP
+
+importlib msvcrt,\
+	kbhit="_kbhit",\
+	getche="_getche"
+
+proc_noprologue
+
+proc interpret c uses pbx psi pdi pbp
+	xor pbx, pbx
+	.opcodes_loop:
+		@call c [kbhit]()
+		test eax, eax
+			jnz .console_input
+		.after_input:
+		mov ecx, [.regs + 31 * 4]
+		mov eax, [ProgMem + pcx * 4]					; eax - opcode
+		inc dword[.regs + 31 * 4]
+		mov ebx, eax
+		shr ebx, 7
+		and ebx, 011111b
+		lea pbx, [.regs + pbx * 4]					; ebx - destination register address
+		mov ecx, eax
+		and ecx, 0111b  							; ecx - instruction type
+		jmp pointer[.Types + pcx * pointer.size]
+		.continue:
+	cmp dword[.regs + 31 * 4], 4096
+	jl .opcodes_loop
+
+	.return:
+		printf_str equ "\nProgram output ends\nRegisters:\n"
+		printf_vargs equ
+
+		; output f-string and arguments set generation
+		rept 16 cntr:0{
+			match any, printf_str\{
+				printf_str equ any \# 'r:%-2d = %08x\t r:%-2d = %08x\n'
+			\}
+			printf_vargs equ printf_vargs ,\ 
+				(cntr * 2), dword[.regs + (cntr * 2) * 4],\
+				(cntr * 2 + 1), dword[.regs + (cntr * 2 + 1) * 4]
+		}
+		match any, printf_str{
+			printf_str equ any \# 'UART queue length:%d\nUART queue data:\n'
+		}
+
+		movzx eax, [.len_uart]
+		@call c [printf](printf_str printf_vargs, eax)
+		movzx eax, [.len_uart]
+		test eax, eax
+		jz .no_uart_data
+			movzx ebx, [.first_uart]
+			.print_pueue:
+				@call c [putchar](dword[uart_queue + ebx])
+				inc ebx
+				and ebx, 0xFF
+			cmp bl, [.last_uart]
+			jne .print_pueue
+		.no_uart_data:
+		ret
+	
+	.console_input:
+		@call c [getche]()
+		movzx edx, [.last_uart]
+		mov [uart_queue + pdx], al
+		inc byte[.last_uart]
+		mov ecx, .first_uart
+		mov edx, .len_uart
+		cmp [.len_uart], 255
+			cmove edx, ecx
+		inc byte[edx]
+		jmp .after_input
+
+	; registers
+
+	.regs dd 32 dup(0)
+
+	; UART queue tools
+
+	.last_uart 	db 0
+	.first_uart db 0
+	.len_uart 	db 0
+	.speed_uart db 11h
+
+	; array of pointers to instruction types handlers
+
+	.Types:
+		dptr .nop
+		dptr .long_const
+		dptr .short_const
+		dptr .3_reg
+		dptr .external
+		dptr .hlt
+		dptr .4_reg
+		dptr 2 dup (.nop)
+
+	; arrays of pointers to operations handlers
+
+	.ALU:
+		dptr .mov
+		dptr .add
+		dptr .sub
+		dptr .not
+		dptr .and
+		dptr .or
+		dptr .xor
+		dptr 2 dup (.nop)
+		dptr .cmpa
+		dptr .cmpe
+		dptr .cmpb
+		dptr .cmovnz
+		dptr .cmovz
+		dptr 2 dup (.nop)
+
+	.DEV:
+		dptr .inm	
+		dptr .outm
+		dptr 2 dup (.nop)
+		dptr .getu	
+		dptr .setu	
+		dptr .inu	
+		dptr .outu	
+		dptr .getg	
+		dptr .setg	
+		dptr .ing	
+		dptr .outg	
+		dptr 4 dup (.nop)
+
+	.4_regs:
+	;separated by high 4 bytes
+	;0000
+		dptr 4 dup (.nop)
+	;0001
+		dptr 4 dup (.nop)
+	;0010
+		dptr 4 dup (.nop)
+	;0011
+		dptr 4 dup (.nop)
+	;0100
+		dptr 4 dup (.nop)
+	;0101
+		dptr 4 dup (.nop)
+	;0110
+		dptr 4 dup (.nop)
+	;0111
+		dptr .shr
+		dptr .sar
+		dptr .shrd
+		dptr .ror
+	;1000
+		dptr .shl
+		dptr .sal
+		dptr .shld
+		dptr .rol
+	;1001
+		dptr 4 dup (.nop)
+	;1010
+		dptr 4 dup (.nop)
+	;1011
+		dptr 4 dup (.nop)
+	;1100
+		dptr 4 dup (.nop)
+	;1101
+		dptr 4 dup (.nop)
+	;1110
+		dptr 4 dup (.nop)
+	;1111
+		dptr 4 dup (.nop)
+
+
+	; instruction types handlers
+
+	.nop:
+		jmp .continue
+
+	.long_const:
+		mov esi, eax
+		shr esi, 12  					; esi - 3 argument(value)
+		mov ebp, [pbx]					; ebp - 2 argument(value)
+		mov edi, eax
+		shr edi, 3
+		and edi, 01111b
+		jmp pointer[.ALU + pdi * pointer.size]
+
+	.short_const:
+		mov esi, eax
+		shr esi, 17  					; esi - 3 argument(value)
+		mov ebp, eax
+		shr ebp, 12
+		and ebp, 011111b
+		mov ebp, [.regs + pbp * 4]		; ebp - 2 argument(value)
+		mov edi, eax
+		shr edi, 3
+		and edi, 01111b
+		jmp pointer[.ALU + pdi * pointer.size]
+
+	.3_reg:
+		mov esi, eax
+		shr esi, 17  					; esi - 3 argument(value)
+		and esi, 01111b
+		mov esi, [.regs + psi * 4]
+		mov ebp, eax
+		shr ebp, 12
+		and ebp, 011111b
+		mov ebp, [.regs + pbp * 4]		; ebp - 2 argument(value)
+		mov edi, eax
+		shr edi, 3
+		and edi, 01111b
+		jmp pointer[.ALU + pdi * pointer.size]
+
+	.external:
+		mov ebp, eax
+		shr ebp, 12
+		and ebp, 011111b
+		mov ebp, [.regs + pbp * 4]		; ebp - 2 argument(value)
+		mov edi, eax
+		shr edi, 3
+		and edi, 01111b
+		jmp pointer[.DEV + pdi * pointer.size]
+
+	.hlt:
+		jmp .return
+
+	.4_reg:
+		mov ecx, eax
+		shr ecx, 22  					; ecx - 4 argument(value)
+		and ecx, 01111b
+		mov ecx, [.regs + pcx * 4]
+		mov esi, eax
+		shr esi, 17  					; esi - 3 argument(value)
+		and esi, 01111b
+		mov esi, [.regs + psi * 4]
+		mov ebp, eax
+		shr ebp, 12
+		and ebp, 011111b
+		mov ebp, [.regs + pbp * 4]		; ebp - 2 argument(value)
+		mov edi, eax
+		shr edi, 3
+		and edi, 01111b
+		shld edi, eax, 2
+		jmp pointer[.4_regs + pdi * pointer.size]
+
+	; operation handlers(ALU)
+	; 	ebx - destination register pointer(1st argument)
+	; 	ebp - second argument value
+	; 	esi - third argument value
+
+	.mov:
+		mov [pbx], esi
+		jmp .continue
+
+	.add:
+		add ebp, esi
+		mov [pbx], ebp
+		jmp .continue
+
+	.sub:
+		sub ebp, esi
+		mov [pbx], ebp
+		jmp .continue
+
+	.not:
+		not esi
+		mov [pbx], esi
+		jmp .continue
+
+	.and:
+		and ebp, esi
+		mov [pbx], ebp
+		jmp .continue
+
+	.or:
+		or ebp, esi
+		mov [pbx], ebp
+		jmp .continue
+
+	.xor:
+		xor ebp, esi
+		mov [pbx], ebp
+		jmp .continue
+
+	.cmpa:
+		xor eax, eax
+		mov edi, -1
+		cmp ebp, esi
+		cmova eax, edi
+		mov [pbx], eax
+		jmp .continue
+
+	.cmpe:
+		xor eax, eax
+		mov edi, -1
+		cmp ebp, esi
+		cmove eax, edi
+		mov [pbx], eax
+		jmp .continue
+
+	.cmpb:
+		xor eax, eax
+		mov edi, -1
+		cmp ebp, esi
+		cmovb eax, edi
+		mov [pbx], eax
+		jmp .continue
+
+	.cmovnz:
+		mov eax, [pbx]
+		cmp ebp, -1
+		cmove eax, esi
+		mov [pbx], eax
+		jmp .continue
+
+	.cmovz:
+		mov eax, [pbx]
+		test ebp, ebp
+		cmovz eax, esi
+		mov [pbx], eax
+		jmp .continue
+
+	; operation handlers(DEVICES)
+	; 	edi - operation code
+	; 	ebx - destination register pointer(1st argument)
+	; 	ebp - second argument value
+	
+	.getu:
+		movzx eax, [.len_uart]
+		shrd dword[ebx], eax, 16
+		movzx eax, [.first_uart]
+		movzx eax, [uart_queue + eax]
+		shrd dword[ebx], eax, 8
+		movzx eax, [.speed_uart]
+		shrd dword[ebx], eax, 8
+		jmp .continue
+	
+	.setu:
+		mov eax, [ebx]
+		mov [.speed_uart], al
+		jmp .continue
+	
+	.inu:
+		cmp [.len_uart], 0
+			je .random_out
+		movzx eax, [.first_uart]
+		movzx eax, [uart_queue + eax]
+		mov [ebx], eax
+		inc [.first_uart]
+		dec [.len_uart]
+		jmp .continue
+		.random_out:
+			rdrand eax
+			mov [pbx], eax
+			jmp .continue
+	
+	.outu:
+		@call c [putchar](dword[pbx])
+		jmp .continue
+	
+	.getg:
+		jmp .continue
+	
+	.setg:
+		jmp .continue
+	
+	.ing:
+		jmp .continue
+	
+	.outg:
+		jmp .continue
+	
+	.inm:
+		mov eax, [ProgMem + pbp * 4]
+		mov [pbx], eax
+		jmp .continue
+	
+	.outm:
+		mov eax, [pbx]
+		mov [ProgMem + pbp * 4], eax
+		jmp .continue
+
+	; operation handlers(shifts)
+	; 	ebx - destination register pointer(1st argument)
+	; 	ebp - second argument value
+	; 	esi - third argument value
+	; 	ecx - fourth argument value
+
+	.shr:
+		mov ecx, esi
+		shr ebp, cl
+		mov [pbx], ebp
+		jmp .continue
+
+	.sar:
+		mov ecx, esi
+		sar ebp, cl
+		mov [pbx], ebp
+		jmp .continue
+
+	.shrd:
+		shrd ebp, esi, cl
+		mov [pbx], ebp
+		jmp .continue
+
+	.ror:
+		mov ecx, esi
+		ror ebp, cl
+		mov [pbx], ebp
+		jmp .continue
+	
+	.shl:
+		mov ecx, esi
+		shl ebp, cl
+		mov [pbx], ebp
+		jmp .continue
+
+	.sal:
+		mov ecx, esi
+		sal ebp, cl
+		mov [pbx], ebp
+		jmp .continue
+
+	.shld:
+		shld ebp, esi, cl
+		mov [pbx], ebp
+		jmp .continue
+
+	.rol:
+		mov ecx, esi
+		rol ebp, cl
+		mov [pbx], ebp
+		jmp .continue
+
+	; program memory
+
+	postpone{
+		uart_queue rb 256
+		ProgMem rd 4096
+	}
+endp
+
+proc main
+	@call [SetConsoleCP](1251)
+	@call [SetConsoleOutputCP](1251)
+	locals 
+		lpFile dptr ?
+		FileSize dd ?
+		lpMem dptr ?
+	endl
+	cmp [CNV.argc], 2
+		jl .not_enough_arguments
+	mov pbx, [CNV.argv]
+	@call c [fopen](pointer[pbx + pointer.size], "rb")
+	mov [lpFile], pax
+	@call c [fseek](pax, 0, SEEK_END)
+	@call c [ftell]([lpFile])
+	mov [FileSize], eax
+	cmp eax, 4096 *4
+		ja .too_large
+	@call c [fseek]([lpFile], 0, SEEK_SET)
+	@call c [fread](ProgMem, 1, [FileSize], [lpFile])
+	test pax, pax
+		jz .fread_error
+	@call c interpret()
+	@call c [fclose]([lpFile])
+	ret
+
+	.not_enough_arguments:
+		@call c [puts]("File didn`t selected!")
+		ret
+
+	.too_large:
+		@call c [puts]("File is too large!")
+		ret
+
+	.fread_error:
+		@call c [puts]("File read error!")
+		ret
+endp
