@@ -1,5 +1,6 @@
 !Примечание!
-Для компиляции интерпретатора самостоятельно папка TOOLS должна содержать в себе файлы из <https://github.com/ZReticules/FASM_OOP/tree/multiarch>
+Для компиляции интерпретатора самостоятельно папка TOOLS должна содержать в себе файлы из <https://github.com/ZReticules/FASM_OOP/tree/multiarch>  
+Основной репозиторий проекта <https://github.com/Teimir/UARTP>
 
 Описание синтаксиса инструкций ISA Fasm  
 1. Общие сведения:  
