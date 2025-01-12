@@ -1,4 +1,4 @@
-; change x64.inc to x86.inc for 
+; change x64.inc to x86.inc for x86 compilation
 include "TOOLS\x64.inc"
 include "TOOLS\STDHEAD.inc"
 include "encoding\Win1251.inc"
