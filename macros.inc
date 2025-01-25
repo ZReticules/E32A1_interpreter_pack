@@ -15,22 +15,33 @@ macro entry point{
 }
 
 macro _push arg{
-	sub r:30, r:30, 1
 	match =r:n, arg\{
-		lds [r:0], arg
+		if n = 30
+			mov r:29, arg
+			sub r:30, r:30, 1
+			lds [r:30], r:29
+		else
+			sub r:30, r:30, 1
+			lds [r:30], arg
+		end if
 	rept 0\{\}rept 1\{
-		mov r:29, arg
+		match [any], arg\\{
+			lds r:29, arg
+		rept 0\\{\\} rept 1\\{
+			mov r:29, arg
+		\\}
+		sub r:30, r:30, 1
 		lds [r:30], r:29
 	\}
 }
 
 macro _pop arg{
-	match [any], arg\\{
+	match [any], arg\{
 		lds r:29, [r:30]
 		lds arg, r:29
-	rept 0\\{\\} rept 1\\{
+	rept 0\{\} rept 1\{
 		lds arg, [r:30]
-	\\}
+	\}
 	add r:30, r:30, 1
 }
 
@@ -47,8 +58,10 @@ macro ccall name, [args]{
 				mov r:29, any
 				lds r:cntr, [r:29]
 			\\\}
-		rept 0\\{\\} rept 1\\{
-			mov r:cntr, args
+		rept 0\\{\\} match =r:n, args\\{
+			if cntr <> n
+				mov r:cntr, args
+			end if
 		\\}
 		cntr = cntr + 1
 		common

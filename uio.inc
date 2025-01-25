@@ -40,6 +40,8 @@ if used input
 				and r:4, r:4, 0xFF
 				cmpe r:7, r:4, 0xd
 					cmovnz r:31, r:7, .return addr
+				cmpe r:7, r:4, 0xa
+					cmovnz r:31, r:7, .return addr
 				shrd r:5, r:5, r:4, r:3
 				add r:0, r:0, 1
 				sub r:6, r:6, 1

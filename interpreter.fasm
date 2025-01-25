@@ -185,9 +185,8 @@ proc interpret c uses pbx psi pdi pbp
 		jmp .continue
 
 	.long_const:
-		mov esi, eax
-		shr esi, 12  					; esi - 3 argument(value)
-		mov ebp, [pbx]					; ebp - 2 argument(value)
+		mov ebp, eax
+		shr ebp, 12					; ebp - 2 argument(value)
 		mov edi, eax
 		shr edi, 3
 		and edi, 01111b
@@ -257,7 +256,7 @@ proc interpret c uses pbx psi pdi pbp
 	; 	esi - third argument value
 
 	.mov:
-		mov [pbx], esi
+		mov [pbx], ebp
 		jmp .continue
 
 	.add:

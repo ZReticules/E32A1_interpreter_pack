@@ -4,12 +4,9 @@ include "uio.inc"
 entry main
 
 main:
-	ccall input, .input addr, 10  	; РїРѕР»СѓС‡РµРЅРёРµ СЃС‚СЂРѕРєРё СЃ uart
-	mov r:0, 0xA  					; РїРµСЂРµРЅРѕСЃ СЃС‚СЂРѕРєРё
-	outu r:0
-	ccall print, .input addr  		; РІС‹РІРѕРґ СЃС‡РёС‚Р°РЅРЅРѕР№ СЃС‚СЂРѕРєРё
+	ccall print, .str addr  		; вывод считанной строки
 	hlt
 
-.input db 11 dup(?)
+.str db "Привет", 0
 align 4
 
