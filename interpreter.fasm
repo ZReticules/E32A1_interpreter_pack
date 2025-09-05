@@ -17,7 +17,15 @@ importlib msvcrt,\
 
 proc_noprologue
 
+@bss_alloc ProgMem rd 4096
+
 proc interpret c uses pbx psi pdi pbp
+	; program memory	
+	bss
+		.ticks_start dq ?
+		.uart_queue rb 256
+	endb
+
 	xor pbx, pbx
 	.opcodes_loop:
 		@call c [kbhit]()
@@ -62,7 +70,7 @@ proc interpret c uses pbx psi pdi pbp
 		jz .no_uart_data
 			movzx ebx, [.first_uart]
 			.print_pueue:
-				@call c [putchar](dword[uart_queue + ebx])
+				@call c [putchar](dword[.uart_queue + ebx])
 				inc ebx
 				and ebx, 0xFF
 			cmp bl, [.last_uart]
@@ -73,7 +81,7 @@ proc interpret c uses pbx psi pdi pbp
 	.console_input:
 		@call c [getche]()
 		movzx edx, [.last_uart]
-		mov [uart_queue + pdx], al
+		mov [.uart_queue + pdx], al
 		inc byte[.last_uart]
 		mov ecx, .first_uart
 		mov edx, .len_uart
@@ -336,7 +344,7 @@ proc interpret c uses pbx psi pdi pbp
 		movzx eax, [.len_uart]
 		shrd dword[ebx], eax, 16
 		movzx eax, [.first_uart]
-		movzx eax, [uart_queue + eax]
+		movzx eax, [.uart_queue + eax]
 		shrd dword[ebx], eax, 8
 		movzx eax, [.speed_uart]
 		shrd dword[ebx], eax, 8
@@ -351,7 +359,7 @@ proc interpret c uses pbx psi pdi pbp
 		cmp [.len_uart], 0
 			je .random_out
 		movzx eax, [.first_uart]
-		movzx eax, [uart_queue + eax]
+		movzx eax, [.uart_queue + eax]
 		mov [ebx], eax
 		inc [.first_uart]
 		dec [.len_uart]
@@ -378,9 +386,38 @@ proc interpret c uses pbx psi pdi pbp
 		jmp .continue
 	
 	.inm:
-		mov eax, [ProgMem + pbp * 4]
-		mov [pbx], eax
-		jmp .continue
+		switch ebp
+			case -1, -2
+				movq xmm0, [.ticks_start]
+				rdtsc
+				match =x64, __architecture{
+					; mov [.ticks_start], rax
+					movq xmm1, rax
+				}
+				match =x86, __architecture{
+					movd xmm1, eax
+					movd xmm2, edx
+					psllq xmm2, 32
+					paddq xmm1, xmm2
+					; mov dword[.ticks_start], eax
+					; mov dword[.ticks_start + 4], edx
+				}
+				psubq xmm1, xmm0
+				
+				; some magic to check if we must return ticks count
+				and ebp, 1
+				shl ebp, 5
+				movd xmm0, ebp
+				psrlq xmm1, xmm0
+				
+				movd [pbx], xmm1
+				; @call c [printf]("%lld\n", qword xmm1)
+				jmp .continue
+			case_default
+				mov eax, [ProgMem + pbp * 4]
+				mov [pbx], eax
+				jmp .continue
+		end_switch
 	
 	.outm:
 		mov eax, [pbx]
@@ -438,13 +475,6 @@ proc interpret c uses pbx psi pdi pbp
 		rol ebp, cl
 		mov [pbx], ebp
 		jmp .continue
-
-	; program memory
-
-	postpone{
-		uart_queue rb 256
-		ProgMem rd 4096
-	}
 endp
 
 proc main
