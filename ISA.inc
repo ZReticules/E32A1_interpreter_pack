@@ -254,9 +254,10 @@ macro outg op1*{
 	dd opcode
 }
 
+_start_code:
+
 include "macros.inc"
 
-_start_code:
 ; вспомогательный макрос для перевода числа в ascii-формат
 macro dword_to_uint arg{
 	local temp_val, diver
