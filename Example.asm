@@ -6,6 +6,15 @@ entry main
 main:
 	; ccall print, .str addr  		; вывод считанной строки
 	mov r:0, main addr
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
 	hlt
 
 ; .str db "Привет", 0

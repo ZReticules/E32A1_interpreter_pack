@@ -259,17 +259,17 @@ _start_code:
 include "macros.inc"
 
 ; вспомогательный макрос для перевода числа в ascii-формат
-macro dword_to_uint arg{
-	local temp_val, diver
-	temp_val = arg
-	diver = 1
-	while diver*10 < arg
-		diver = diver * 10
+macro dword_to_uint argum{
+	local temp_val, divisor
+	temp_val = argum
+	divisor = 1
+	while (divisor * 10) <= temp_val
+		divisor = divisor * 10
 	end while
-	while diver > 0
-		db (temp_val / diver)+30h
-		temp_val = temp_val mod diver
-		diver = diver / 10
+	while divisor > 0
+		db (temp_val / divisor)+30h
+		temp_val = temp_val mod divisor
+		divisor = divisor / 10
 	end while
 }
 
