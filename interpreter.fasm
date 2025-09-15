@@ -1,9 +1,9 @@
 ; change x64.inc to x86.inc for x86 compilation
-include "TOOLS\x64.inc"
-include "TOOLS\STDHEAD.inc"
+include "FASM_OOP\x64.inc"
+include "FASM_OOP\STDHEAD.inc"
 include "encoding\Win1251.inc"
-include "TOOLS\TOOLS.INC"
-include "TOOLS\cstdio.inc"
+include "FASM_OOP\TOOLS.INC"
+include "FASM_OOP\cstdio.inc"
 
 entry main
 
